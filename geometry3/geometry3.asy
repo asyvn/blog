@@ -1,7 +1,9 @@
 /*Trần Quân 15/11/2021*/
 import three;
-import solids;
+//import solids;
+import geometry;
 real epsgeo = 10 * sqrt(realEpsilon);
+
 //Lấy điểm K trên AB sao cho AK=kAB
 triple rpoint(real k, triple A, triple B) { 
 	return (1-k)*A + k*B; //k*(B-A)+A;
@@ -207,10 +209,12 @@ circle3 circumcircle(triangle3 t){
 	triple O=circumcenter(t);
 	return circle3(O, t.A, t.normal);
 }
+//Trọng tâm tam giác
 triple centroid(triangle3 t) {
     return (t.A+t.B+t.C)/3;
 }
 
+//Trực tâm tam giác
 triple orthocenter(triangle3 t){
     real f(real a, real b, real c) {
         return 1/(b^2+c^2-a^2);
@@ -234,8 +238,13 @@ triple projectX(triple A, triple B, triple C) {
 }
 
 //Đối xứng của P qua AB
-triple reflect(triple P, triple A, triple B) {
+triple reflect3(triple P, triple A, triple B) {
 	return rotate(180, A, B)*P;
+}
+
+//Đối xứng của P qua đường thẳng l
+triple reflect3(triple P, line3 l) {
+	return rotate(180, l.A, l.B)*P;
 }
 
 //Hình chiếu vuông góc của P lên AB
@@ -243,6 +252,7 @@ triple project(triple P, triple A, triple B) {
     return (P + rotate(180, A, B)*P)/2;
 }
 
+//Hình chiếu của P lên đường thẳng l
 triple project(triple P, line3 l) {
     return project(P, l.A, l.B);
 }
@@ -440,8 +450,14 @@ real distance(triple P, triple A, triple B) {
     return abs(P-Q);
 }
 
+//P, A, B thẳng hàng Hướng khác?
 bool sameline(triple P, triple A, triple B) {
-    return (distance(P, A, B)<epsgeo);
+    //return (distance(P, A, B)<epsgeo);
+    return (area(P, A, B) < epsgeo);
+}
+
+bool operator @(triple P, line3 l) {
+    return(sameline(P, l.A, l.B));
 }
 
 //Hình chiếu vuông góc của P lên mặt phẳng ax + by + cz + d =0
@@ -495,9 +511,6 @@ struct plane3 {
             this.A=pO; this.B=pX; this.C=pY;
         }
         
-        //this.path = A--B--B+C-A--C--cycle;
-        //this.normal = normal(A--B--C--cycle);
-        
 
     }
 
@@ -549,9 +562,9 @@ plane3 perpendicular(triple P, triple A, triple B) {
 	triple pA, pB, pC;
 
 	if (sameline(pY, P, pX)==false) {
-    	pA=P; pB=pX; pC=pY;
+        pA=P; pB=pX; pC=pY;
 	} else if (sameline(pZ, P, pX)==false) {
-		pA=P; pB=pX; pC=pZ;
+        pA=P; pB=pX; pC=pZ;
 	}
   	return plane3(pA, pB, pC);
 }
@@ -603,12 +616,53 @@ plane3 circletoplane(circle3 co) {
     return perpendicular(co.c, O, co.normal);
 }
 
+//Trả về true nếu P nằm trên mặt cầu
 bool operator @(triple P, sphere3 so) {
     return (abs(abs(so.c-P) - so.r) < epsgeo);
 }
 
-//Giao plane pa và pb
+//Giao của 3 mặt phẳng (nếu có)
+triple intersectionpoint(plane3 pl1, plane3 pl2, plane3 pl3) {
+    real a1 = pl1.a, b1 = pl1.b, c1=pl1.c, d1=pl1.d;
+    real a2 = pl2.a, b2 = pl2.b, c2=pl2.c, d2=pl2.d;
+    real a3 = pl3.a, b3 = pl3.b, c3=pl3.c, d3=pl3.d;
+
+    real [][]D = {  {a1, b1, c1},
+                    {a2, b2, c2},
+                    {a3, b3, c3}
+                };
+    real [][]Dx = { {-d1, b1, c1},
+                    {-d2, b2, c2},
+                    {-d3, b3, c3}
+                };       
+    real [][]Dy = { {a1, -d1, c1},
+                    {a2, -d2, c2},
+                    {a3, -d3, c3}
+                };
+    real [][]Dz = { {a1, b1, -d1},
+                    {a2, b2, -d2},
+                    {a3, b3, -d3}
+                };
+    real x0, y0, z0;
+    if (determinant(D) != 0) {
+        x0 = determinant(Dx)/determinant(D);
+        y0 = determinant(Dy)/determinant(D);
+        z0 = determinant(Dz)/determinant(D);
+    }
+    return (x0, y0, z0);
+}
+
+//Giao của hai mặt phẳng
 line3 intersect(plane3 pl1, plane3 pl2) {
+    triple slope = cross(pl1.normal, pl2.normal);
+    plane3 pl3 = plane3(slope.x, slope.y, slope.z, 0);
+    triple P = intersectionpoint(pl1, pl2, pl3);
+    return line3(P, P+slope);
+}
+
+/*
+//Giao plane pa và pb
+line3 intersectX(plane3 pl1, plane3 pl2) {
     line3 result;
     real a1=pl1.a, b1=pl1.b, c1=pl1.c, d1=pl1.d;
     real a2=pl2.a, b2=pl2.b, c2=pl2.c, d2=pl2.d;
@@ -627,6 +681,7 @@ line3 intersect(plane3 pl1, plane3 pl2) {
     }
     return result;
 }
+*/
 
 //Khoảng cách từ P đến mặt phẳng pl
 real distance(triple P, plane3 pl) {
@@ -648,8 +703,7 @@ real distance(triple A, triple B, triple P, triple Q) {
 }
 
 //Giao của mặt phẳng và mặt cầu
-/*http://www.ambrsoft.com/TrigoCalc/Sphere/SpherePlaneIntersection_.htm
-*/
+
 circle3 intersect(sphere3 s, plane3 pl) {
     triple centerH = project(s.c, pl);
     real rH = sqrt(s.r^2 - abs(s.c-centerH)*abs(s.c-centerH));
@@ -843,4 +897,11 @@ plane3 []tangents(triple A, triple B, sphere3 s) {
     
     return result;
 }
+
+//Trả về true nếu hai mặt phẳng song song với nhau
+bool isparallel(plane3 pl1, plane3 pl2) {
+    triple n1 = pl1.normal, n2 = pl2.normal;
+    return (O@line3(n1, n2));
+}
+
 /////////////////////
